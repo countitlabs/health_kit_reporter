@@ -141,9 +141,14 @@ class HealthKitReporter {
   /// inside [HealthKit].
   /// Provide the [predicate] to set the date interval.
   ///
+  /// The background delivery is reported to [HealthKit] as handled only
+  /// after the future returned by [onUpdate] completes, so the app stays
+  /// awake while [onUpdate] is still working. The native side reports it
+  /// anyway after a timeout.
+  ///
   static StreamSubscription<dynamic> observerQuery(
       List<String> identifiers, Predicate? predicate,
-      {required Function(String) onUpdate}) {
+      {required FutureOr<void> Function(String) onUpdate}) {
     final arguments = <String, dynamic>{
       'identifiers': identifiers,
     };
@@ -152,10 +157,16 @@ class HealthKitReporter {
     }
     return _observerQueryChannel
         .receiveBroadcastStream(arguments)
-        .listen((event) {
+        .listen((event) async {
       final map = Map<String, dynamic>.from(event);
       final identifier = map['identifier'];
-      onUpdate(identifier);
+      try {
+        await onUpdate(identifier);
+      } finally {
+        await _methodChannel.invokeMethod('completeObserverQuery', {
+          'completionId': map['completionId'],
+        });
+      }
     });
   }
 

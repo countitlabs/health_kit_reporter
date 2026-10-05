@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HealthKit
 import HealthKitReporter
 
 public final class ObserverQueryStreamHandler: NSObject {
@@ -38,17 +39,26 @@ extension ObserverQueryStreamHandler: StreamHandlerProtocol {
             guard let type = identifier.objectType as? SampleType else {
                 return
             }
-            let query = try reporter.observer.observerQuery(
-                type: type,
+            guard let sampleType = type.original as? HKSampleType else {
+                throw HealthKitError.invalidType("Invalid HKQuantityType: \(type)")
+            }
+            // Created directly instead of through reporter.observer.observerQuery, which calls
+            // the completion handler itself right away. Here it is called only after Flutter
+            // finishes handling the update.
+            let query = HKObserverQuery(
+                sampleType: sampleType,
                 predicate: predicate
-            ) { (query, identifier, error) in
+            ) { (query, completion, error) in
                 guard
                     error == nil,
-                    let identifier = identifier
+                    let identifier = query.identifier
                 else {
                     return
                 }
-                events(["identifier": identifier])
+                let completionId = ObserverQueryCompletionStore.shared.add(completion)
+                DispatchQueue.main.async {
+                    events(["identifier": identifier, "completionId": completionId])
+                }
             }
             plannedQueries.insert(query)
         }

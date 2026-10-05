@@ -30,6 +30,7 @@ extension SwiftHealthKitReporterPlugin {
         case enableBackgroundDelivery
         case disableAllBackgroundDelivery
         case disableBackgroundDelivery
+        case completeObserverQuery
         case startWatchApp
         case isAuthorizedToWrite
         case addCategory
@@ -227,6 +228,16 @@ extension SwiftHealthKitReporterPlugin {
                 arguments: arguments,
                 result: result
             )
+        case .completeObserverQuery:
+            guard
+                let arguments = call.arguments as? [String: String],
+                let completionId = arguments["completionId"]
+            else {
+                throwNoArgumentsError(result: result)
+                return
+            }
+            ObserverQueryCompletionStore.shared.complete(id: completionId)
+            result(true)
         case .startWatchApp:
             guard let arguments = call.arguments as? [String: Any] else {
                 throwNoArgumentsError(result: result)
